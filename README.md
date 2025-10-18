@@ -196,21 +196,3 @@ python view.py input.pxl
 * Integration with attestation servers for high-trust devices.
 
 ---
-
-## **License**
-
-MIT License — see `LICENSE` file for details.
-
----
-
-This README provides a **full project overview**, **installation instructions**, **usage examples**, **file structure explanation**, and the **universal device-backed signing workflow** we discussed.
-
----
-
-I can also produce a **version with flow diagrams** showing:
-
-1. `.pxl` packing workflow
-2. Device-backed key provisioning + attestation
-3. Verification flow
-
-This makes it easier for developers or reviewers to understand the system at a glance.
