@@ -45,7 +45,7 @@ def pack_image(input_file: str, output_file: str, signing_key: bytes) -> None:
     
     # Extract metadata
     metadata = extract_metadata(input_file)
-    
+    #print(metadata)
     # Split into chunks
     chunks = chunk_bytes(image_bytes, CHUNK_SIZE)
     
@@ -65,7 +65,7 @@ def pack_image(input_file: str, output_file: str, signing_key: bytes) -> None:
     # Canonicalize manifest
     manifest_json = canonical_json(manifest)
     manifest_bytes = manifest_json.encode("utf-8")
-    
+    #print(manifest_json)
     # Derive encryption key from manifest
     hasher = blake3.blake3(manifest_bytes)
     hasher.update(b"pxl-aead-key")

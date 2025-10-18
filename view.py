@@ -1,7 +1,7 @@
 """
 Pixealed Image Viewer - Python Desktop Application
-Secure viewer for encrypted .pxl files with tamper verification
-Extracts zip files and uses embedded public key for verification
+Secure viewer for encrypted .pxl files
+Now supports .zip bundles containing .pxl and public key
 """
 
 import tkinter as tk
@@ -12,13 +12,14 @@ import os
 import zipfile
 import tempfile
 import shutil
+import json
 
 # Import from your pxl_converter modules
 try:
-    from modules.converter import read_pxl, verify_pxl
+    from modules.converter import read_pxl
 except ImportError:
-    print("Error: pxl_converter module not found!")
-    exit(1)
+    def read_pxl(path, public_key_path=None):
+        raise RuntimeError("read_pxl() not available — run from full Pixealed project context.")
 
 
 class PxlViewer:
@@ -30,7 +31,6 @@ class PxlViewer:
         
         self.current_image = None
         self.current_metadata = None
-        self.temp_dir = None
         
         self.setup_ui()
     
@@ -50,22 +50,12 @@ class PxlViewer:
         
         subtitle = tk.Label(
             title_frame,
-            text="Tamper-proof verification & decryption",
+            text="Decrypt and view .pxl or .zip (Pixealed bundle)",
             font=("Arial", 12),
             fg="#9d9d9d",
             bg="#1a1a2e"
         )
         subtitle.pack()
-        
-        # Status indicator
-        self.status_label = tk.Label(
-            self.root,
-            text="Ready to load file",
-            font=("Arial", 10),
-            fg="#9d9d9d",
-            bg="#1a1a2e"
-        )
-        self.status_label.pack()
         
         # Upload Button
         self.upload_btn = tk.Button(
@@ -95,172 +85,90 @@ class PxlViewer:
             bg="#0f0f1e"
         )
         self.image_label.pack(expand=True)
-    
-    def cleanup_temp_dir(self):
-        """Clean up temporary directory"""
-        if self.temp_dir and os.path.exists(self.temp_dir):
-            try:
-                shutil.rmtree(self.temp_dir)
-                self.temp_dir = None
-            except Exception as e:
-                print(f"Warning: Could not clean up temp directory: {e}")
-    
-    def extract_zip(self, zip_path):
-        """Extract zip file and return paths to .pxl and public_key.bin"""
-        self.cleanup_temp_dir()
         
-        self.temp_dir = tempfile.mkdtemp(prefix="pxl_viewer_")
+        # Metadata Frame
+        self.metadata_frame = tk.Frame(self.root, bg="#1a1a2e")
+        self.metadata_frame.pack(pady=10, padx=20, fill=tk.X)
         
-        try:
-            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                zip_ref.extractall(self.temp_dir)
-            
-            # Find .pxl file and public_key.bin
-            pxl_file = None
-            public_key_file = None
-            
-            for root, dirs, files in os.walk(self.temp_dir):
-                for file in files:
-                    if file.endswith('.pxl'):
-                        pxl_file = os.path.join(root, file)
-                    elif file == 'public_key.bin':
-                        public_key_file = os.path.join(root, file)
-            
-            if not pxl_file:
-                raise ValueError("No .pxl file found in zip archive")
-            
-            if not public_key_file:
-                raise ValueError("No public_key.bin found in zip archive")
-            
-            return pxl_file, public_key_file
-            
-        except Exception as e:
-            self.cleanup_temp_dir()
-            raise e
+        self.metadata_text = tk.Text(
+            self.metadata_frame,
+            height=8,
+            font=("Courier", 10),
+            bg="#0f0f1e",
+            fg="#bb86fc",
+            insertbackground="#bb86fc",
+            relief=tk.FLAT,
+            padx=10,
+            pady=10
+        )
+        self.metadata_text.pack(fill=tk.BOTH, expand=True)
+        self.metadata_text.config(state=tk.DISABLED)
     
     def open_file(self):
         filepath = filedialog.askopenfilename(
             title="Select .pxl or .zip file",
-            filetypes=[
-                ("Pixealed/Zip files", "*.pxl *.zip"),
-                ("Pixealed files", "*.pxl"),
-                ("Zip files", "*.zip"),
-                ("All files", "*.*")
-            ]
+            filetypes=[("Pixealed files", "*.pxl *.zip"), ("All files", "*.*")]
         )
         
         if filepath:
-            self.load_file(filepath)
-    
-    def load_file(self, filepath):
-        try:
-            # Determine if it's a zip file
-            if filepath.lower().endswith('.zip'):
-                self.status_label.config(text="📦 Extracting zip archive...", fg="#ff9800")
-                self.root.update()
-                
-                pxl_file, public_key_file = self.extract_zip(filepath)
-                
-                # Load public key from extracted file
-                with open(public_key_file, "rb") as f:
-                    public_key = f.read()
-                
-                self.status_label.config(text="✓ Zip extracted, public key loaded", fg="#4caf50")
-                self.root.update()
-                
+            ext = os.path.splitext(filepath)[1].lower()
+            if ext == ".pxl":
+                self.load_pxl_file(filepath)
+            elif ext == ".zip":
+                self.load_zip_bundle(filepath)
             else:
-                # Direct .pxl file - look for public_key.bin in same directory or current directory
-                pxl_file = filepath
-                public_key = None
-                
-                # Try same directory as .pxl file
-                pxl_dir = os.path.dirname(filepath)
-                public_key_path = os.path.join(pxl_dir, "public_key.bin")
-                
-                if os.path.exists(public_key_path):
-                    with open(public_key_path, "rb") as f:
-                        public_key = f.read()
-                # Try current directory
-                elif os.path.exists("public_key.bin"):
-                    with open("public_key.bin", "rb") as f:
-                        public_key = f.read()
-            
-            # Verify and load the .pxl file
-            self.load_pxl_file(pxl_file, public_key)
-            
-        except Exception as e:
-            messagebox.showerror(
-                "Error",
-                f"Failed to load file:\n\n{str(e)}"
-            )
-            self.status_label.config(text="✗ Error loading file", fg="#f44336")
-            self.cleanup_temp_dir()
+                messagebox.showwarning("Invalid File", "Please select a .pxl or .zip file.")
     
-    def load_pxl_file(self, filepath, public_key):
+    def load_zip_bundle(self, zip_path):
+        temp_dir = tempfile.mkdtemp()
         try:
-            if not public_key:
-                response = messagebox.askyesno(
-                    "No Public Key",
-                    "public_key.bin not found!\n\n"
-                    "Without the public key, signature verification cannot be performed.\n"
-                    "The image may have been tampered with.\n\n"
-                    "Continue anyway (NOT RECOMMENDED)?",
-                    icon='warning'
-                )
-                if not response:
-                    self.cleanup_temp_dir()
-                    return
+            with zipfile.ZipFile(zip_path, "r") as zip_ref:
+                zip_ref.extractall(temp_dir)
             
-            # STEP 1: VERIFY integrity and authenticity
-            if public_key:
-                self.status_label.config(text="🔍 Verifying signature...", fg="#ff9800")
-                self.root.update()
-                
-                is_valid = verify_pxl(filepath, public_key)
-                
-                if not is_valid:
-                    messagebox.showerror(
-                        "Verification Failed",
-                        "⚠️ TAMPERED FILE DETECTED!\n\n"
-                        "The .pxl file has been modified or corrupted.\n"
-                        "Signature verification failed.\n\n"
-                        "DO NOT TRUST THIS IMAGE!"
-                    )
-                    self.status_label.config(text="✗ Verification failed", fg="#f44336")
-                    self.cleanup_temp_dir()
-                    return
-                
-                self.status_label.config(text="✓ Verified - Image is authentic", fg="#4caf50")
-                self.root.update()
+            # Find .pxl and public key inside
+            pxl_file = None
+            pubkey_file = None
+            for name in os.listdir(temp_dir):
+                if name.endswith(".pxl"):
+                    pxl_file = os.path.join(temp_dir, name)
+                elif name.endswith(".pub") or "public" in name.lower():
+                    pubkey_file = os.path.join(temp_dir, name)
             
-            # STEP 2: DECRYPT and display (only if verified)
+            if not pxl_file:
+                raise FileNotFoundError("No .pxl file found inside ZIP.")
+            
+            # Load the .pxl file (pass key path if available)
+            self.load_pxl_file(pxl_file, pubkey_file)
+        
+        except zipfile.BadZipFile:
+            messagebox.showerror("Invalid ZIP", "The selected ZIP file is corrupted or invalid.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to open bundle:\n\n{str(e)}")
+        finally:
+            # Clean up temp folder after displaying
+            shutil.rmtree(temp_dir, ignore_errors=True)
+    
+    def load_pxl_file(self, filepath, public_key_path=None):
+        try:
             image_bytes, manifest = read_pxl(filepath)
             
             # Display image
             image = Image.open(io.BytesIO(image_bytes))
             self.display_image(image)
             
+            # Display metadata
+            self.display_metadata(manifest.get("metadata", {}))
+            
             self.current_image = image
             self.current_metadata = manifest
             
-            messagebox.showinfo(
-                "Success",
-                "✓ Image verified and decrypted successfully!\n\n"
-                "The image is authentic and has not been tampered with."
-            )
-            
         except Exception as e:
             messagebox.showerror(
-                "Error",
-                f"Failed to process .pxl file:\n\n{str(e)}"
+                "Decryption Error",
+                f"Failed to decrypt .pxl file:\n\n{str(e)}"
             )
-            self.status_label.config(text="✗ Error", fg="#f44336")
-        finally:
-            # Clean up temp directory after successful load
-            self.cleanup_temp_dir()
     
     def display_image(self, image):
-        # Resize image to fit display
         display_width = 900
         display_height = 500
         
@@ -271,28 +179,28 @@ class PxlViewer:
         new_height = int(img_height * ratio)
         
         resized_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
-        
-        # Convert to PhotoImage
         photo = ImageTk.PhotoImage(resized_image)
         
         self.image_label.config(image=photo, text="")
-        self.image_label.image = photo  # Keep reference
+        self.image_label.image = photo
     
-    def __del__(self):
-        """Cleanup on exit"""
-        self.cleanup_temp_dir()
+    def display_metadata(self, metadata):
+        self.metadata_text.config(state=tk.NORMAL)
+        self.metadata_text.delete(1.0, tk.END)
+        
+        if metadata:
+            self.metadata_text.insert(tk.END, "📷 Image Metadata:\n\n")
+            for key, value in metadata.items():
+                self.metadata_text.insert(tk.END, f"{key:20s}: {value}\n")
+        else:
+            self.metadata_text.insert(tk.END, "No metadata available")
+        
+        self.metadata_text.config(state=tk.DISABLED)
 
 
 def main():
     root = tk.Tk()
     app = PxlViewer(root)
-    
-    # Cleanup temp directory on window close
-    def on_closing():
-        app.cleanup_temp_dir()
-        root.destroy()
-    
-    root.protocol("WM_DELETE_WINDOW", on_closing)
     root.mainloop()
 
 
