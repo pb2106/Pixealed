@@ -1,1 +1,6 @@
 pix/
+keys/
+keyverify.py
+input.jpg
+input.zip
+__pycache__/
