@@ -1,4 +1,4 @@
-# **Pixealed — Decentralized Tamper-Proof Image Format (.pxl) [Prompt Engineered Project]**
+# **Pixealed — Tamper-Proof Image Format (.pxl) [Prompt Engineered Project]**
 
 **Project Objective:**
 Pixealed is a Python-based system for generating self-contained, tamper-evident image files (`.pxl`) with embedded camera metadata, chunk-based integrity verification, Merkle tree protection, and cryptographically verifiable signatures. It supports **universal device provenance**, enabling traceability to the original device using hardware-backed keys or deterministic fallbacks.
