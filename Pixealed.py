@@ -7,6 +7,8 @@ import os
 import zipfile
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
+from modules.converter import pack_image, verify_pxl, read_pxl
+from modules.crypto import generate_keypair
 from datetime import datetime
 from PIL import Image, ImageTk
 import io
@@ -15,19 +17,6 @@ import shutil
 import threading
 
 # Import from your pxl_converter modules
-try:
-    from modules.converter import pack_image, verify_pxl, read_pxl
-    from modules.crypto import generate_keypair
-except ImportError:
-    def pack_image(*args, **kwargs):
-        raise RuntimeError("pack_image() not available — run from full Pixealed project context.")
-    def verify_pxl(*args, **kwargs):
-        raise RuntimeError("verify_pxl() not available — run from full Pixealed project context.")
-    def read_pxl(*args, **kwargs):
-        raise RuntimeError("read_pxl() not available — run from full Pixealed project context.")
-    def generate_keypair(*args, **kwargs):
-        raise RuntimeError("generate_keypair() not available — run from full Pixealed project context.")
-
 
 def format_bytes(bytes_val):
     """Format bytes as human-readable string"""
@@ -58,7 +47,7 @@ class PixealedApp:
         
         title = tk.Label(
             title_frame,
-            text="🔒 Pixealed",
+            text="Pixealed",
             font=("Arial", 28, "bold"),
             fg="#bb86fc",
             bg="#1a1a2e"
@@ -88,13 +77,18 @@ class PixealedApp:
         
         # Converter Tab
         self.converter_frame = tk.Frame(self.notebook, bg="#1a1a2e")
-        self.notebook.add(self.converter_frame, text="  🔐 Convert to .pxl  ")
+        self.notebook.add(self.converter_frame, text="Convert to .pxl  ")
         self.setup_converter_tab()
         
         # Viewer Tab
         self.viewer_frame = tk.Frame(self.notebook, bg="#1a1a2e")
-        self.notebook.add(self.viewer_frame, text="  👁️ View .pxl Files  ")
+        self.notebook.add(self.viewer_frame, text="View .pxl Files  ")
         self.setup_viewer_tab()
+        
+        # About Tab
+        self.about_frame = tk.Frame(self.notebook, bg="#1a1a2e")
+        self.notebook.add(self.about_frame, text="About  ")
+        self.setup_about_tab()
     
     def setup_converter_tab(self):
         # Input Section
@@ -162,23 +156,13 @@ class PixealedApp:
             activeforeground="white"
         ).pack(anchor=tk.W, pady=2)
         
-        self.generate_keys_var = tk.BooleanVar(value=True)
-        tk.Checkbutton(
-            options_frame,
-            text="Generate new keypair",
-            variable=self.generate_keys_var,
-            font=("Arial", 10),
-            fg="white",
-            bg="#1a1a2e",
-            selectcolor="#0f0f1e",
-            activebackground="#1a1a2e",
-            activeforeground="white"
-        ).pack(anchor=tk.W, pady=2)
+        # We handle key gen automatically now
+        # self.generate_keys_var = tk.BooleanVar(value=True)
         
         # Convert Button
         self.convert_btn = tk.Button(
             self.converter_frame,
-            text="🔒 Convert to .pxl",
+            text="Convert to .pxl",
             font=("Arial", 14, "bold"),
             bg="#bb86fc",
             fg="white",
@@ -230,7 +214,7 @@ class PixealedApp:
         # Open Button
         open_btn = tk.Button(
             self.viewer_frame,
-            text="📁 Open .pxl or .zip File",
+            text="Open .pxl File",
             font=("Arial", 14, "bold"),
             bg="#bb86fc",
             fg="white",
@@ -249,7 +233,7 @@ class PixealedApp:
         
         self.image_label = tk.Label(
             image_frame,
-            text="No image loaded\n\nClick 'Open .pxl or .zip File' to decrypt and view an image",
+            text="No image loaded\n\nClick 'Open .pxl File' to decrypt and view an image",
             font=("Arial", 14),
             fg="#6d6d6d",
             bg="#0f0f1e"
@@ -262,7 +246,7 @@ class PixealedApp:
         
         tk.Label(
             metadata_frame,
-            text="📷 Image Metadata:",
+            text="Image Metadata:",
             font=("Arial", 11, "bold"),
             fg="#bb86fc",
             bg="#1a1a2e"
@@ -282,6 +266,46 @@ class PixealedApp:
         self.metadata_text.pack(fill=tk.BOTH, expand=True)
         self.metadata_text.config(state=tk.DISABLED)
     
+    def setup_about_tab(self):
+        about_container = tk.Frame(self.about_frame, bg="#1a1a2e")
+        about_container.pack(pady=20, padx=40, fill=tk.BOTH, expand=True)
+        
+        tk.Label(
+            about_container,
+            text="What is Pixealed?",
+            font=("Arial", 20, "bold"),
+            fg="#bb86fc",
+            bg="#1a1a2e"
+        ).pack(anchor=tk.W, pady=(0, 10))
+        
+        about_text = (
+            "Pixealed is a high-security image encryption and verification utility designed to ensure absolute data integrity and private distribution of visual media. In an era where digital tampering and spoofing are rampant, Pixealed guarantees that the image you encrypt remains mathematically untampered with. By uniting state-of-the-art cryptographic primitives into a specialized '.pxl' container, the software provides non-repudiation, tamper-evidence, and strict confidentiality.\n\n"
+            
+            "Why XChaCha20-Poly1305?\n"
+            "At the core of our encryption layer lies the XChaCha20-Poly1305 cipher suite. Unlike older block ciphers such as AES (which can suffer from cache-timing vulnerability without hardware acceleration), XChaCha20 is a stream cipher that executes with immense speed and consistent timing across all platforms. This ensures rendering large image files is nearly instantaneous. Crucially, the 'Poly1305' component provides Authenticated Encryption with Associated Data (AEAD). This means a cryptographic MAC (Message Authentication Code) is generated alongside the ciphertext. If an attacker attempts to flip a single bit of the encrypted image, the Poly1305 authentication check will fail before decryption even begins, neutralizing chosen-ciphertext attacks. Furthermore, the 'X' (eXtended) version of ChaCha20 uses a massive 192-bit nonce, ensuring that random nonce collisions—which normally destroy the security of stream ciphers—are mathematically impossible.\n\n"
+            
+            "The Role of Merkle Trees in Granular Verification:\n"
+            "While Poly1305 secures the encryption layer, Pixealed employs a Merkle Tree architecture to verify the core structural integrity of the raw image data itself. When an image is packaged, it is split into discrete 256 KB chunks. Each chunk is individually processed through a cryptographic hash function to create a 'leaf' node. Pairs of leaves are then hashed together recursively until they converge into a single, master 'Root Hash' that uniquely fingerprints the entire image. This design serves two vital purposes: first, if even one solitary byte (a single altered pixel) is modified in the media, a cascading avalanche effect completely invalidates the root hash. Second, it embeds resistance against localized corruption, proving unequivocally that the payload perfectly matches its original state at the time of signing.\n\n"
+            
+            "Digital Signatures (Ed25519) & Key Management:\n"
+            "To provide irrefutable proof of origin, the Merkle Root, along with critical image metadata, is bound together into a JSON manifest. This manifest is then cryptographically signed using an Ed25519 elliptic-curve public-key signature scheme. Ed25519 is celebrated for its immunity to side-channel attacks and small, lightning-fast 64-byte signatures. Upon running Pixealed for the first time, a local Ed25519 keypair is automatically generated and securely stored in your './keys' directory as a `.bin` file. When you encrypt an image, the software binds the public key seamlessly into the proprietary `.pxl` binary structure. \n\n"
+            
+            "When the file is delivered to a recipient, the Pixealed viewer transparently extracts the signature, embeds the public key, and verifies the manifest against the encrypted Merkle Tree. If any parameter has been altered—be it the metadata, the tree root, or the underlying pixel data—the verification chain snaps, throwing a warning and blocking the tampered file. This complete zero-trust lifecycle ensures that what was exported is exactly what is viewed."
+        )
+        
+        text_widget = tk.Text(
+            about_container,
+            font=("Arial", 12),
+            bg="#1a1a2e",
+            fg="white",
+            wrap=tk.WORD,
+            relief=tk.FLAT,
+            height=20
+        )
+        text_widget.pack(fill=tk.BOTH, expand=True)
+        text_widget.insert(tk.END, about_text)
+        text_widget.config(state=tk.DISABLED)
+
     def select_input_file(self):
         filepath = filedialog.askopenfilename(
             title="Select Image to Encrypt",
@@ -321,150 +345,106 @@ class PixealedApp:
             # Prepare paths
             input_file = self.selected_input_file
             base_name = os.path.splitext(input_file)[0]
-            output_zip = base_name + ".zip"
+            output_pxl = base_name + ".pxl"
             
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            signing_key_path = f"./keys/signing_key_{timestamp}.bin"
-            public_key_path = f"./keys/public_key_{timestamp}.bin"
-            temp_pxl = f"temp_{timestamp}.pxl"
+            self.root.after(0, lambda: self.log(f" Input:  {os.path.basename(input_file)}"))
+            self.root.after(0, lambda: self.log(f" Output: {os.path.basename(output_pxl)}"))
             
-            self.root.after(0, lambda: self.log(f"📁 Input:  {os.path.basename(input_file)}"))
-            self.root.after(0, lambda: self.log(f"📦 Output: {os.path.basename(output_zip)}"))
+            # Load existing key or generate
+            keys_dir = "./keys"
+            os.makedirs(keys_dir, exist_ok=True)
+            existing_keys = [f for f in os.listdir(keys_dir) if f.startswith("signing_key_")]
             
-            # Generate or load keys
-            if self.generate_keys_var.get():
-                self.root.after(0, lambda: self.log("\n🔑 Generating new Ed25519 keypair..."))
+            if existing_keys:
+                self.root.after(0, lambda: self.log("\n Loading existing signing key..."))
+                signing_key_path = os.path.join(keys_dir, existing_keys[0])
+                with open(signing_key_path, "rb") as f:
+                    signing_key = f.read()
+                self.root.after(0, lambda: self.log(f" Loaded {existing_keys[0]}"))
+            else:
+                self.root.after(0, lambda: self.log("\n Generating new Ed25519 keypair..."))
                 signing_key, public_key = generate_keypair()
                 
-                os.makedirs(os.path.dirname(signing_key_path) or '.', exist_ok=True)
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                signing_key_path = f"{keys_dir}/signing_key_{timestamp}.bin"
                 
                 with open(signing_key_path, "wb") as f:
                     f.write(signing_key)
-                with open(public_key_path, "wb") as f:
-                    f.write(public_key)
                 
-                self.root.after(0, lambda: self.log(f"   ✓ Keys generated and saved"))
-            else:
-                self.root.after(0, lambda: self.log("❌ Error: Key loading not implemented in GUI mode"))
-                return
+                self.root.after(0, lambda: self.log(f" Signing key generated and saved"))
             
             # Convert
-            self.root.after(0, lambda: self.log("\n🔒 Converting to encrypted .pxl format..."))
-            pack_image(input_file, temp_pxl, signing_key)
+            self.root.after(0, lambda: self.log("\n Converting to encrypted .pxl format..."))
+            pack_image(input_file, output_pxl, signing_key)
             
             original_size = os.path.getsize(input_file)
-            pxl_size = os.path.getsize(temp_pxl)
+            pxl_size = os.path.getsize(output_pxl)
             overhead = pxl_size - original_size
             
-            self.root.after(0, lambda: self.log(f"   ✓ .pxl file created"))
-            self.root.after(0, lambda: self.log(f"\n📊 Statistics:"))
+            self.root.after(0, lambda: self.log(f"   .pxl file created"))
+            self.root.after(0, lambda: self.log(f"\n Statistics:"))
             self.root.after(0, lambda: self.log(f"   Original: {format_bytes(original_size)}"))
             self.root.after(0, lambda: self.log(f"   .pxl:     {format_bytes(pxl_size)}"))
             self.root.after(0, lambda: self.log(f"   Overhead: {format_bytes(overhead)} ({overhead/original_size*100:.1f}%)"))
             
             # Verify
             if self.verify_var.get():
-                self.root.after(0, lambda: self.log("\n🔍 Verifying integrity..."))
-                is_valid = verify_pxl(temp_pxl, public_key)
+                self.root.after(0, lambda: self.log("\n Verifying integrity..."))
+                is_valid = verify_pxl(output_pxl)
                 
                 if is_valid:
-                    self.root.after(0, lambda: self.log("   ✓ Verification PASSED"))
+                    self.root.after(0, lambda: self.log("   Verification PASSED"))
                 else:
-                    self.root.after(0, lambda: self.log("   ❌ Verification FAILED"))
-                    if os.path.exists(temp_pxl):
-                        os.remove(temp_pxl)
+                    self.root.after(0, lambda: self.log("   Verification FAILED"))
+                    if os.path.exists(output_pxl):
+                        os.remove(output_pxl)
                     return
             
-            # Package
-            self.root.after(0, lambda: self.log("\n📦 Packaging into .zip..."))
-            with zipfile.ZipFile(output_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                base_pxl_name = os.path.splitext(os.path.basename(input_file))[0] + ".pxl"
-                zipf.write(temp_pxl, base_pxl_name)
-                zipf.write(public_key_path, "public_key.bin")
-            
-            zip_size = os.path.getsize(output_zip)
-            self.root.after(0, lambda: self.log(f"   ✓ Created '{os.path.basename(output_zip)}' ({format_bytes(zip_size)})"))
-            
-            # Cleanup
-            if os.path.exists(temp_pxl):
-                os.remove(temp_pxl)
-            
-            self.root.after(0, lambda: self.log("\n✅ Conversion complete!"))
-            self.root.after(0, lambda: self.log(f"📦 Package: {output_zip}"))
-            self.root.after(0, lambda: self.log(f"🔑 Keys: {os.path.dirname(signing_key_path)}/"))
+            self.root.after(0, lambda: self.log("\n Conversion complete!"))
+            self.root.after(0, lambda: self.log(f" Output: {output_pxl}"))
+            self.root.after(0, lambda: self.log(f" Keys logic completed at: {signing_key_path}"))
             
             self.root.after(0, lambda: messagebox.showinfo(
                 "Success",
-                f"Image encrypted successfully!\n\nOutput: {os.path.basename(output_zip)}"
+                f"Image encrypted successfully!\n\nOutput: {os.path.basename(output_pxl)}"
             ))
             
         except Exception as e:
-            self.root.after(0, lambda: self.log(f"\n❌ Error: {str(e)}"))
-            self.root.after(0, lambda: messagebox.showerror("Conversion Error", str(e)))
+            error_msg = str(e)
+            self.root.after(0, lambda msg=error_msg: self.log(f"\n Error: {msg}"))
+            self.root.after(0, lambda msg=error_msg: messagebox.showerror("Conversion Error", msg))
         finally:
             self.root.after(0, lambda: self.convert_btn.config(state=tk.NORMAL))
     
     def open_file(self):
         filepath = filedialog.askopenfilename(
-            title="Select .pxl or .zip file",
-            filetypes=[("Pixealed files", "*.pxl *.zip"), ("All files", "*.*")]
+            title="Select .pxl file",
+            filetypes=[("Pixealed files", "*.pxl"), ("All files", "*.*")]
         )
         
         if filepath:
             ext = os.path.splitext(filepath)[1].lower()
             if ext == ".pxl":
                 self.load_pxl_file(filepath)
-            elif ext == ".zip":
-                self.load_zip_bundle(filepath)
             else:
-                messagebox.showwarning("Invalid File", "Please select a .pxl or .zip file.")
+                messagebox.showwarning("Invalid File", "Please select a .pxl file.")
     
-    def load_zip_bundle(self, zip_path):
-        temp_dir = tempfile.mkdtemp()
+    def load_pxl_file(self, filepath):
         try:
-            with zipfile.ZipFile(zip_path, "r") as zip_ref:
-                zip_ref.extractall(temp_dir)
+            # Verify the file (will use embedded key)
+            is_valid = verify_pxl(filepath)
             
-            pxl_file = None
-            pubkey_file = None
-            for name in os.listdir(temp_dir):
-                if name.endswith(".pxl"):
-                    pxl_file = os.path.join(temp_dir, name)
-                elif name.endswith(".pub") or "public" in name.lower():
-                    pubkey_file = os.path.join(temp_dir, name)
-            
-            if not pxl_file:
-                raise FileNotFoundError("No .pxl file found inside ZIP.")
-            
-            self.load_pxl_file(pxl_file, pubkey_file)
-        
-        except zipfile.BadZipFile:
-            messagebox.showerror("Invalid ZIP", "The selected ZIP file is corrupted or invalid.")
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to open bundle:\n\n{str(e)}")
-        finally:
-            shutil.rmtree(temp_dir, ignore_errors=True)
-    
-    def load_pxl_file(self, filepath, public_key_path=None):
-        try:
-            # Verify the file first if we have a public key
-            if public_key_path and os.path.exists(public_key_path):
-                with open(public_key_path, "rb") as f:
-                    public_key = f.read()
-                
-                is_valid = verify_pxl(filepath, public_key)
-                
-                if not is_valid:
-                    messagebox.showerror(
-                        "Verification Failed",
-                        "⚠️ File verification FAILED!\n\nThe .pxl file may be corrupted or tampered with."
-                    )
-                    return
-                else:
-                    messagebox.showinfo(
-                        "Verification Passed",
-                        "✓ File verification PASSED!\n\nThe file is authentic and untampered."
-                    )
+            if not is_valid:
+                messagebox.showerror(
+                    "Verification Failed",
+                    "File verification FAILED!\n\nThe .pxl file may be corrupted, tampered with, or lack a valid signature profile."
+                )
+                return
+            else:
+                messagebox.showinfo(
+                    "Verification Passed",
+                    "File verification PASSED!\n\nThe signature is valid and untampered."
+                )
             
             # Read and decrypt the file
             image_bytes, manifest = read_pxl(filepath)

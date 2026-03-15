@@ -85,6 +85,9 @@ def pack_image(input_file: str, output_file: str, signing_key: bytes) -> None:
     # Sign manifest
     signature = sign_manifest(manifest_bytes, signing_key)
     
+    from nacl.signing import SigningKey
+    pub_key = bytes(SigningKey(signing_key).verify_key)
+    
     # Write .pxl file
     with open(output_file, "wb") as f:
         # ENCRYPTED_IMAGE_BYTES
@@ -99,6 +102,9 @@ def pack_image(input_file: str, output_file: str, signing_key: bytes) -> None:
         # MANIFEST (length-prefixed)
         f.write(struct.pack("<I", len(manifest_bytes)))
         f.write(manifest_bytes)
+        
+        # PUBLIC KEY
+        f.write(pub_key)
         
         # SIGNATURE (64 bytes for Ed25519)
         f.write(signature)
@@ -158,6 +164,10 @@ def read_pxl(pxl_file: str) -> Tuple[bytes, Dict[str, Any]]:
     manifest = json.loads(manifest_bytes.decode("utf-8"))
     offset += manifest_len
     
+    # PUBLIC_KEY
+    public_key = auth_block[offset:offset+32]
+    offset += 32
+    
     # SIGNATURE (64 bytes)
     signature = auth_block[offset:offset+64]
     offset += 64
@@ -194,13 +204,13 @@ def read_pxl(pxl_file: str) -> Tuple[bytes, Dict[str, Any]]:
     return image_bytes, manifest
 
 
-def verify_pxl(pxl_file: str, public_key: bytes) -> bool:
+def verify_pxl(pxl_file: str, provided_public_key: bytes = None) -> bool:
     """
     Verify the integrity and authenticity of a .pxl file
     
     Args:
         pxl_file: Path to .pxl file
-        public_key: Ed25519 public key (32 bytes)
+        provided_public_key: Optional external Ed25519 public key. If None, uses embedded key.
         
     Returns:
         True if verification passes, False otherwise
@@ -243,6 +253,13 @@ def verify_pxl(pxl_file: str, public_key: bytes) -> bool:
         manifest = json.loads(manifest_bytes.decode("utf-8"))
         offset += manifest_len
         
+        # PUBLIC KEY
+        public_key = auth_block[offset:offset+32]
+        offset += 32
+        
+        # Use provided key if specified, otherwise embedded key
+        verify_key = provided_public_key if provided_public_key else public_key
+        
         # SIGNATURE
         signature = auth_block[offset:offset+64]
         offset += 64
@@ -261,7 +278,7 @@ def verify_pxl(pxl_file: str, public_key: bytes) -> bool:
             return False
         
         # Verify signature
-        if not verify_manifest(manifest_bytes, signature, public_key):
+        if not verify_manifest(manifest_bytes, signature, verify_key):
             return False
         
         # Derive decryption key from manifest
