@@ -4,5 +4,7 @@ keyverify.py
 input.jpg
 input.zip
 __pycache__/
+.venv/
+.pytest_cache/
 run.py
 view.py

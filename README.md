@@ -45,7 +45,7 @@ Pixealed/
 │   ├── crypto.py      # Key generation, signing, verification, device provenance
 │   ├── merkle.py      # Chunk hashing and Merkle tree utilities
 │   ├── metadata.py    # Camera metadata extraction or synthetic metadata
-│   └── utils.py       # Chunking, canonical JSON, and helper functions
+│   └── utils.py       # Chunking, canonical CBOR, and helper functions
 ├── input.jpg          # Example input image
 ├── input.zip          # Optional input package
 ├── run.py             # CLI for converting images to .pxl
@@ -122,11 +122,11 @@ python view.py input.pxl
 | MAGIC        | 4 bytes: `"PXL!"`                                                                             |
 | VERSION      | 1 byte: `0x01`                                                                                |
 | IMAGE_CHUNKS | 256 KB each (last chunk may be smaller)                                                       |
-| MANIFEST     | Canonical JSON including metadata, chunk hashes, Merkle root, device fingerprint, trust level |
+| MANIFEST     | Canonical CBOR including metadata, chunk hashes, Merkle root, device fingerprint, trust level |
 | SIGNATURE    | Ed25519 signature of the manifest                                                             |
 | FOOTER       | 4 bytes: `"END!"`                                                                             |
 
-**Manifest Fields Example:**
+**Manifest Fields Example (JSON Representation of CBOR):**
 
 ```json
 {
@@ -181,7 +181,7 @@ python view.py input.pxl
 | `crypto.py`    | Key generation, deterministic seed fallback, signing, verification, device fingerprint, trust tier. |
 | `merkle.py`    | Compute BLAKE3 hashes, build Merkle trees for chunk verification.                                   |
 | `metadata.py`  | Extract EXIF/XMP camera metadata or generate synthetic metadata.                                    |
-| `utils.py`     | Chunking, canonical JSON formatting, helper functions for file I/O.                                 |
+| `utils.py`     | Chunking, canonical CBOR formatting, helper functions for file I/O.                                 |
 
 ---
 

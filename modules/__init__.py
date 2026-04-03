@@ -10,7 +10,7 @@ from .converter import pack_image, read_pxl, verify_pxl
 from .crypto import generate_keypair, sign_manifest, verify_manifest
 from .merkle import hash_chunk, build_merkle_tree, verify_chunk
 from .metadata import extract_metadata, generate_synthetic_metadata
-from .utils import chunk_bytes, canonical_json
+from .utils import chunk_bytes, canonical_cbor
 
 __version__ = "0.1.0"
 __all__ = [
@@ -31,5 +31,5 @@ __all__ = [
     "generate_synthetic_metadata",
     # Helper utilities
     "chunk_bytes",
-    "canonical_json",
+    "canonical_cbor",
 ]

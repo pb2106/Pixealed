@@ -6,7 +6,7 @@ Structure: [ENCRYPTED_IMAGE][MAGIC][VERSION][MANIFEST_LEN][MANIFEST][SIGNATURE][
 """
 
 import struct
-import json
+import cbor2
 import os
 from typing import Tuple, Dict, Any
 import blake3
@@ -16,7 +16,7 @@ from nacl.bindings import (
 )
 
 from .metadata import extract_metadata
-from .utils import chunk_bytes, canonical_json
+from .utils import chunk_bytes, canonical_cbor
 from .merkle import build_merkle_tree
 from .crypto import sign_manifest, verify_manifest
 
@@ -63,8 +63,7 @@ def pack_image(input_file: str, output_file: str, signing_key: bytes) -> None:
     }
     
     # Canonicalize manifest
-    manifest_json = canonical_json(manifest)
-    manifest_bytes = manifest_json.encode("utf-8")
+    manifest_bytes = canonical_cbor(manifest)
     #print(manifest_json)
     # Derive encryption key from manifest
     hasher = blake3.blake3(manifest_bytes)
@@ -161,7 +160,7 @@ def read_pxl(pxl_file: str) -> Tuple[bytes, Dict[str, Any]]:
     
     # MANIFEST
     manifest_bytes = auth_block[offset:offset+manifest_len]
-    manifest = json.loads(manifest_bytes.decode("utf-8"))
+    manifest = cbor2.loads(manifest_bytes)
     offset += manifest_len
     
     # PUBLIC_KEY
@@ -250,7 +249,7 @@ def verify_pxl(pxl_file: str, provided_public_key: bytes = None) -> bool:
         
         # MANIFEST
         manifest_bytes = auth_block[offset:offset+manifest_len]
-        manifest = json.loads(manifest_bytes.decode("utf-8"))
+        manifest = cbor2.loads(manifest_bytes)
         offset += manifest_len
         
         # PUBLIC KEY

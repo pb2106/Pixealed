@@ -1,8 +1,8 @@
 """
-Utility functions for chunking and JSON canonicalization
+Utility functions for chunking and CBOR canonicalization
 """
 
-import json
+import cbor2
 from typing import List, Any
 
 
@@ -28,24 +28,17 @@ def chunk_bytes(data: bytes, chunk_size: int) -> List[bytes]:
     return chunks
 
 
-def canonical_json(obj: Any) -> str:
+def canonical_cbor(obj: Any) -> bytes:
     """
-    Convert a Python object to canonical JSON string
+    Convert a Python object to canonical CBOR bytes
     
     Canonical format ensures consistent serialization for signing:
     - Keys sorted alphabetically
-    - No extra whitespace
-    - Consistent formatting
     
     Args:
         obj: Python object (dict, list, etc.)
         
     Returns:
-        Canonical JSON string
+        Canonical CBOR bytes
     """
-    return json.dumps(
-        obj,
-        sort_keys=True,
-        separators=(',', ':'),
-        ensure_ascii=True
-    )
+    return cbor2.dumps(obj)
