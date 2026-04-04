@@ -198,4 +198,5 @@ python view.py input.pxl
 ---
 ### **Done by**
 - [Prabhav M Naik](https://github.com/pb2106/)
-- [Nathan Marc Anthony](https://github.com/Nathanmarc/) 
+- [Nathan Marc Anthony](https://github.com/Nathanmarc/)
+- [Akhil](https://github.com/akhil906789/)
